@@ -16,15 +16,12 @@
 ##  See the License for the specific language governing permissions and
 ##  limitations under the License.
 
-AC_INIT([twine],[1.0])
+AC_INIT([twine],m4_esyscmd([/bin/sh m4/get-version.sh]))
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([foreign])
 AM_MAINTAINER_MODE
 
 AC_CONFIG_HEADER([config.h])
-
-pkgdocdir='${datarootdir}/doc/${PACKAGE_NAME}'
-AC_SUBST([pkgdocdir])
 
 BT_PROG_XCODE
 AC_PROG_CC
@@ -34,12 +31,14 @@ LT_INIT
 
 BT_ENABLE_POSIX
 BT_ENABLE_XSI
+BT_REQUIRE_PTHREAD
 BT_REQUIRE_LIBDL
 BT_REQUIRE_LIBCURL
 BT_REQUIRE_LIBRDF
 BT_REQUIRE_LIBQPID_PROTON
 BT_REQUIRE_LIBXML2
 BT_REQUIRE_LIBXSLT
+BT_REQUIRE_LIBSPARQLCLIENT_INCLUDED
 
 BT_BUILD_DOCS
 
@@ -47,9 +46,6 @@ BT_DEFINE_PREFIX
 
 AC_CONFIG_FILES([Makefile
 libsupport/Makefile
-libsparqlclient/Makefile
-libsparqlclient/libsparqlclient.pc
-libsparqlclient/libsparqlclient-uninstalled.pc
 libutils/Makefile
 libtwine/Makefile
 libtwine/libtwine.pc
