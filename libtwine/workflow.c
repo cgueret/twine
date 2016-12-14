@@ -32,6 +32,8 @@ static int twine_workflow_preprocess_(TWINE *restrict context, TWINEGRAPH *restr
 static int twine_workflow_postprocess_(TWINE *restrict context, TWINEGRAPH *restrict graph, void *dummy);
 static int twine_workflow_sparql_get_(TWINE *restrict context, TWINEGRAPH *restrict graph, void *dummy);
 static int twine_workflow_sparql_put_(TWINE *restrict context, TWINEGRAPH *restrict graph, void *dummy);
+static int twine_workflow_s3_get_(TWINE *restrict context, TWINEGRAPH *restrict graph, void *dummy);
+static int twine_workflow_s3_put_(TWINE *restrict context, TWINEGRAPH *restrict graph, void *dummy);
 
 static char **workflow;
 static size_t nworkflow;
@@ -350,6 +352,8 @@ twine_workflow_init_(TWINE *context)
 	twine_plugin_add_processor(context, "deprecated:postprocess", twine_workflow_postprocess_, context);
 	twine_plugin_add_processor(context, "sparql-get", twine_workflow_sparql_get_, context);
 	twine_plugin_add_processor(context, "sparql-put", twine_workflow_sparql_put_, context);
+	twine_plugin_add_processor(context, "s3-get", twine_workflow_s3_get_, context);
+	twine_plugin_add_processor(context, "s3-put", twine_workflow_s3_put_, context);
 	twine_plugin_allow_internal_(context, 0);
 	r = twine_config_get_all("workflow", "invoke", twine_workflow_config_cb_, context);
 	if(r < 0)
@@ -545,6 +549,81 @@ twine_workflow_sparql_put_(TWINE *restrict context, TWINEGRAPH *restrict graph, 
 	return r;
 }
 
+/* 's3-get' processor: save an RDF graph to the cache of twine and index it */
+static int
+twine_workflow_s3_get_(TWINE *restrict context, TWINEGRAPH *restrict graph, void *dummy)
+{
+	(void) context;
+	(void) dummy;
+
+	twine_logf(LOG_DEBUG, "S3 Get\n");
+
+	// Create the model to load the triples in
+	graph->old = twine_rdf_model_create();
+	if(!graph->old)
+	{
+		twine_logf(LOG_CRIT, "failed to allocate an RDF model\n");
+		return -1;
+	}
+
+	// Load the data from the cache
+	if (twine_cache_fetch_graph_(graph->old, graph->uri))
+	{
+		twine_logf(LOG_CRIT, "failed to load graph from the cache\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+/**
+ * Store the content of graph->store as an Ntriples dump in S3 and put
+ * some entries in the DB 'twine' to make it possible to find it for Spindle.
+ * Two indexes are maintained to care for two usage by Spindle
+ */
+static int
+twine_workflow_s3_put_(TWINE *restrict context, TWINEGRAPH *restrict graph, void *dummy)
+{
+	size_t l;
+	char *tbuf;
+	int r;
+
+	(void) dummy;
+
+	twine_logf(LOG_DEBUG, "S3 PUT\n");
+
+	/* Store the content of the ntriples as an object */
+	tbuf = twine_rdf_model_ntriples(graph->store, &l);
+	if(tbuf)
+	{
+		r = twine_cache_store_s3_(graph->uri, tbuf, l);
+		librdf_free_memory(tbuf);
+	}
+	else
+	{
+		twine_logf(LOG_CRIT, "could not serialize the graph\n");
+		return -1;
+	}
+
+	/* Index all the subjects and objects resources in that graph */
+	if (twine_cache_index_subject_objects_(context, graph))
+	{
+		twine_logf(LOG_CRIT, "could not index the graph for subjects/objects\n");
+		return -1;
+	}
+
+	/* Index all the media pointed at and how they are pointed at */
+	// This is useful for spindle-generate
+	if (twine_cache_index_media_(context, graph))
+	{
+		twine_logf(LOG_CRIT, "could not index the graph for target media\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+/* 's3-get' processor: get an RDF graph from the cache */
 static int
 twine_workflow_process_single_(TWINE *context, TWINEGRAPH *graph, const char *name)
 {

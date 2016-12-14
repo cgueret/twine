@@ -21,7 +21,8 @@ LIBS = \
 	@LIBDL_LIBS@ @LIBDL_LOCAL_LIBS@ \
 	@LIBSPARQLCLIENT_LIBS@ @LIBSPARQLCLIENT_LOCAL_LIBS@ \
 	@LIBCLUSTER_LIBS@ @LIBCLUSTER_LOCAL_LIBS@ \
-	@PTHREAD_LIBS@ @PTHREAD_LOCAL_LIBS@
+	@PTHREAD_LIBS@ @PTHREAD_LOCAL_LIBS@ \
+	@LIBSQL_LOCAL_LIBS@ @LIBSQL_LIBS@ 
 
 AM_CPPFLAGS = @AM_CPPFLAGS@ \
 	@LIBSPARQLCLIENT_CPPFLAGS@ \
@@ -33,13 +34,15 @@ include_HEADERS = libtwine.h
 
 libtwine_la_SOURCES = p_libtwine.h libtwine.h libtwine-internals.h \
 	context.c plugin.c logging.c sparql.c rdf.c config.c mq.c \
-	graph.c workflow.c daemon.c cluster.c legacy-api.c
+	graph.c workflow.c daemon.c cluster.c legacy-api.c db-common.c \
+	db-schema.c cache.c
 
 libtwine_la_LDFLAGS = -avoid-version \
 	-no-undefined \
 	-export-symbols-regex '^twine_'
 
-libtwine_la_LIBADD = $(top_builddir)/libsupport/libsupport.la
+libtwine_la_LIBADD = $(top_builddir)/libsupport/libsupport.la \
+	@LIBAWSCLIENT_LOCAL_LIBS@ @LIBAWSCLIENT_LIBS@
 
 dist_man3_MANS = libtwine.3
 
